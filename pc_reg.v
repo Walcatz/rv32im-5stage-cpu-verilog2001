@@ -29,7 +29,7 @@ module pc_reg
   input  wire        CLK,
   input  wire        RESET,// 全局复位信号，高有效1
   input  wire        StallF,// 模块主使能信号
-  input  wire [31:0] PCNextF,
+  input  wire [31:0] PCNextF,//来自br的下一个周期的目标PC地址
   output reg  [31:0] PCF,
   output wire [31:0] PCPlus4F  // 新增一个输出端口
 );

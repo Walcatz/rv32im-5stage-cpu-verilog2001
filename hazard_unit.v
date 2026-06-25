@@ -6,15 +6,15 @@ module hazard_unit
   input  wire [4:0] Rs1E,
   input  wire [4:0] Rs2E,
   input  wire [4:0] RdE,
-  input  wire        mispredictE,
+  input  wire       mispredictE,
   input  wire [1:0] ResultSrcE, // 2'b01 代表当前EX级是 Load 指令
-  input  wire        BusyE,       // 来自多周期乘除法 ALU 的忙信号
+  input  wire       BusyE,       // 来自多周期乘除法 ALU 的忙信号
 
   input  wire [4:0] RdM,
-  input  wire        RegWriteM,
+  input  wire       RegWriteM,
 
   input  wire [4:0] RdW,
-  input  wire        RegWriteW,
+  input  wire       RegWriteW,
 
   // 流水线控制输出大闸
   output reg         StallF,
@@ -30,9 +30,9 @@ module hazard_unit
 );
 
   // 内部临时逻辑变量声明 (在组合逻辑块内部赋值，综合映射为 wire)
-  reg lStall;   
-  reg aluStall; 
-  reg jbFlush;  
+  reg lStall;   // Load Stall
+  reg aluStall; // ALU Stall
+  reg jbFlush;  // Jump/Branch Flush
 
   // =========================================================================
   // 1. 数据冒险：前推与 Load-use 挂起判定
@@ -70,6 +70,21 @@ module hazard_unit
     // -----------------------------------------------------------------------
     lStall = (ResultSrcE == 2'b01) && ((Rs1D == RdE) || (Rs2D == RdE));
   end
+
+  // =========================================================================
+  // 1. 数据冒险：前推与 Load-use 挂起判定 (纯 assign 扁平化重构)
+  // =========================================================================
+
+  // ForwardAE 路由选择：严格保证 MEM 级具有最高前推优先级
+  assign ForwardAE = ((Rs1E == RdM) && RegWriteM && (Rs1E != 5'b0)) ? 2'b10 : // 优先拦截：来自 MEM 级
+                     ((Rs1E == RdW) && RegWriteW && (Rs1E != 5'b0)) ? 2'b01 : // 次要拦截：来自 WB 级
+                                                                      2'b00 ; // 无冲突：保持原始值
+
+  // ForwardBE 路由选择：严格保证 MEM 级具有最高前推优先级
+  assign ForwardBE = ((Rs2E == RdM) && RegWriteM && (Rs2E != 5'b0)) ? 2'b10 : // 优先拦截：来自 MEM 级
+                     ((Rs2E == RdW) && RegWriteW && (Rs2E != 5'b0)) ? 2'b01 : // 次要拦截：来自 WB 级
+                                                                      2'b00 ; // 无冲突：保持原始值
+
 
   // =========================================================================
   // 2. 控制冒险与结构冒险提取

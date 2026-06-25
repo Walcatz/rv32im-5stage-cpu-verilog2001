@@ -11,7 +11,7 @@ module gshare
   input  wire        JumpE,
   input  wire        JumprE,
   input  wire        BranchE,
-  input  wire        br_actualE,
+  input  wire        br_actualE, //ALUResult[0]
   input  wire [31:0] PCTargetE,
   input  wire [31:0] ALUResultE,
   input  wire        mispredictE,
@@ -34,7 +34,7 @@ module gshare
   wire        br_predictF;
   reg         br_predictD;
   wire        pht_taken;
-  wire        hit;
+  wire        btb_hit;
   wire [31:0] target_addr;
   reg  [31:0] PCNext_actualF;
 
@@ -102,16 +102,17 @@ module gshare
     .br_actualE(br_actualE),
     .PCTargetE(PCTargetE),
     .ALUResultE(ALUResultE),
-    .btb_hit(hit),
+    .btb_hit(btb_hit),
     .target_addr(target_addr)
   );
 
   // =========================================================================
   // 3. 组合逻辑：生成超前预测结果
   //    I_TYPE_a (7'h67 对应 JALR) | J_TYPE (7'h6f 对应 JAL)
+  // 建议是JAL和Branch都用微译码器，JALR用BTB？？？？？？
   // =========================================================================
   wire jump_taken = (opF == 7'h67) || (opF == 7'h6F);
-  assign br_predictF = (pht_taken || jump_taken) && hit;
+  assign br_predictF = (pht_taken || jump_taken) && btb_hit;
 
   // =========================================================================
   // 4. 多路选择器数据流合拢（内联展开映射，免去外部例化）

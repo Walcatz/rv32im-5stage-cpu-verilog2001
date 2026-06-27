@@ -17,8 +17,13 @@ module instruction_mem #(
     assign RD = (word_addr < MEM_DEPTH) ? rom[word_addr] : 32'h00000013;
 
     // 仿真初始化：从外部文本文件加载16进制机器码
+    // initial begin
+    //     $readmemh("inst_rom.txt", rom);
+        
+    // end
+    // 仿真初始化：使用绝对路径从指定目录加载机器码
     initial begin
-        $readmemh("inst_rom.txt", rom);
+        $readmemh("E:/Xilinx/vivado_project/project_hjgr/project_hjgr.srcs/sources_1/rtl/i_mem.hex", rom);
     end
 
 endmodule

@@ -1,4 +1,4 @@
-`include "riscv_defs.vh"
+
 
 
 module extend
@@ -7,7 +7,7 @@ module extend
   input  wire [2:0]  ImmSrc,  // Immediate Select (来自 riscv_defs.vh)
   output reg  [31:0] ImmExt   // Immediate Extended (符号扩展后的 32 位立即数)
 );
-
+  `include "riscv_defs.vh"
   // 组合逻辑计算块
 
   always @(*) begin

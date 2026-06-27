@@ -1,12 +1,3 @@
-//
-//  Authors: Jeffrey Claudio / ChatGPT
-//  Latest Revision: 11-16-2025
-//
-//  Project: divider_32c.v (Converted to Verilog-2001)
-//  Description: A 32-Cycle, Sequential, Non-Restoring Divider
-//  License: MIT License (see LICENSE file in the project root)
-//
-
 module divider_32c (
     input  wire        clk,
     input  wire        reset,       // active-high synchronous reset behavior in this module

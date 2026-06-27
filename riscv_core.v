@@ -1,4 +1,4 @@
-`include "riscv_defs.vh"
+
 
 module riscv_core
 (
@@ -16,7 +16,7 @@ module riscv_core
     output wire [31:0] dmem_wdata,
     input  wire [31:0] dmem_rdata
 );
-
+`include "riscv_defs.vh"
     // =========================================================================
     // 内部全局连线信号定义
     // =========================================================================
@@ -128,6 +128,11 @@ module riscv_core
     wire [31:0] ProReadDataW;
     wire [31:0] ResultW;
 
+    // 当全局复位有效，或者 Hazard Unit 发出冲刷时，均触发寄存器清零
+    wire RealFlushD = FlushD || rst_sync;
+    wire RealFlushE = FlushE || rst_sync;
+    wire RealFlushM = FlushM || rst_sync;
+
     // =========================================================================
     // 全局基础部件：复位同步器
     // =========================================================================
@@ -182,7 +187,7 @@ module riscv_core
     if_id_reg u_if_id_reg (
         .CLK         (clk),
         .StallD      (StallD),
-        .FlushD      (FlushD),
+        .FlushD      (RealFlushD),
         .RD          (imem_rdata),
         .PCF         (PCF),
         .PCPlus4F    (PCPlus4F),
@@ -244,7 +249,7 @@ module riscv_core
     id_ex_reg u_id_ex_reg (
         .CLK            (clk),
         .StallE         (StallE),
-        .FlushE         (FlushE),
+        .FlushE         (RealFlushE),
         .RegWriteD      (RegWriteD),
         .ResultSrcD     (ResultSrcD),
         .MemWriteD      (MemWriteD),
@@ -323,7 +328,7 @@ module riscv_core
         .SrcB       (SrcBE),
         .ALUControl (ALUControlE),
         .BusyE      (BusyE),
-        .ALResult   (ALUResultE)
+        .ALUResult   (ALUResultE)
     );
 
     // 预测失败判定及跳转源路由生成器
@@ -342,7 +347,7 @@ module riscv_core
     // =========================================================================
     ex_mem_reg u_ex_mem_reg (
         .CLK           (clk),
-        .FlushM        (FlushM),
+        .FlushM        (RealFlushM),
         .RegWriteE     (RegWriteE),
         .ResultSrcE    (ResultSrcE),
         .MemWriteE     (MemWriteE),

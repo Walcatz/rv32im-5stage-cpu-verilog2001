@@ -1,5 +1,3 @@
-`include "riscv_defs.vh"
-
 module alu
 (
   input  wire        clk,        // Clock
@@ -10,7 +8,7 @@ module alu
   output wire        BusyE,      // ALU Busy (送往 Hazard Unit)
   output reg  [31:0] ALUResult   // ALU Result
 );
-
+  `include "riscv_defs.vh"
   // 内部线网声明 (组合逻辑输出用 reg，子模块连线用 wire)
   wire [31:0] adder_out, shift_out, and_out, or_out, xor_out;
   reg         sub_en;

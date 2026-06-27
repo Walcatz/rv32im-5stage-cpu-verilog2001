@@ -1,4 +1,4 @@
-`include "riscv_defs.vh"
+
 
 module ctrl_unit
 (
@@ -21,7 +21,7 @@ module ctrl_unit
   output wire        ALUSrcD,         // 改为 assign 驱动
   output reg  [2:0]  ImmSrcD
 );
-
+  `include "riscv_defs.vh"
   // =========================================================================
   // 1. 采用原作者风格的纯组合逻辑连线 (assign)
   // =========================================================================

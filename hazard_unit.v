@@ -72,7 +72,7 @@ module hazard_unit
     assign StallE = aluStall;
     assign FlushE = lStall || jbFlush;
 
-    // Memory (MEM) 级：修正 Bug，乘除忙时 MEM 级自然流空，绝对不要主动 Flush 导致数据丢失
+    // Memory (MEM) 级：主动 Flush 不让MUL/DIV结果污染后续Mem级
     assign FlushM = aluStall;
 
 

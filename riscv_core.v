@@ -1,3 +1,5 @@
+`include "riscv_defs.vh"
+
 module riscv_core
 (
     input  wire        clk,
@@ -16,21 +18,28 @@ module riscv_core
 );
 
     // =========================================================================
-    // 信号声明 (按照流水级划分)
+    // 内部全局连线信号定义
     // =========================================================================
+    wire rst_sync;
 
-    // ------------------ 1. Fetch Stage (IF) ------------------
+    // Hazard Unit 控制大闸
+    wire StallF, StallD, FlushD, StallE, FlushE, FlushM;
+    wire [1:0] ForwardAE, ForwardBE;
+
+    // Fetch (IF) 级信号
     wire [31:0] PCNextF;
     wire [31:0] PCF;
     wire [31:0] PCPlus4F;
-    wire [31:0] InstrF;
+    wire [6:0]  opF = imem_rdata[6:0];
 
-    // ------------------ 2. Decode Stage (ID) ------------------
+    // Decode (ID) 级信号
     wire [6:0]  Instr_6_0;
     wire [2:0]  Instr_14_12;
     wire        Instr_30;
     wire        Instr_25;
-    wire [4:0]  Rs1D, Rs2D, RdD;
+    wire [4:0]  Rs1D;
+    wire [4:0]  Rs2D;
+    wire [4:0]  RdD;
     wire [24:0] Instr_31_7;
     wire [31:0] PCD;
     wire [31:0] PCPlus4D;
@@ -45,14 +54,15 @@ module riscv_core
     wire        JumprD;
     wire        BranchD;
     wire [1:0]  ALUResultsSrcD;
-    wire [4:0]  ALUControlD;
+    wire [4:0]  ALUControlID;
     wire        ALUSrcD;
     wire [2:0]  ImmSrcD;
 
-    wire [31:0] RD1D, RD2D;
+    wire [31:0] RD1D;
+    wire [31:0] RD2D;
     wire [31:0] ImmExtD;
 
-    // ------------------ 3. Execute Stage (EX) ------------------
+    // Execute (EX) 级信号
     wire        RegWriteE;
     wire [1:0]  ResultSrcE;
     wire        MemWriteE;
@@ -67,24 +77,27 @@ module riscv_core
     wire        ALUSrcE;
 
     wire [31:0] PCE;
-    wire [4:0]  Rs1E, Rs2E, RdE;
+    wire [4:0]  Rs1E;
+    wire [4:0]  Rs2E;
+    wire [4:0]  RdE;
     wire [31:0] ImmExtE;
     wire [31:0] PCPlus4E;
-    wire [31:0] RD1E, RD2E;
+    wire [31:0] RD1E;
+    wire [31:0] RD2E;
 
-    wire [31:0] Forwarded_A_E;
-    wire [31:0] WriteDataE; // 前推后的预备写入内存的数据/SrcB的输入源之一
     wire [31:0] SrcAE;
+    wire [31:0] WriteDataE;
     wire [31:0] SrcBE;
     wire [31:0] ALUResultE;
-    wire [31:0] PCTargetE;
     wire        BusyE;
-
+    
+    wire [31:0] PCTargetE = PCE + ImmExtE;
+    wire        br_actualE = ALUResultE[0];
     wire        br_predictE;
     wire [1:0]  PCSrcE;
     wire        mispredictE;
 
-    // ------------------ 4. Memory Stage (MEM) ------------------
+    // Memory (MEM) 级信号
     wire        RegWriteM;
     wire [1:0]  ResultSrcM;
     wire        MemWriteM;
@@ -95,96 +108,99 @@ module riscv_core
 
     wire [31:0] ALUResultM;
     wire [31:0] WriteDataM;
-    wire [4:0]  RdM;
     wire [31:0] PCTargetM;
+    wire [4:0]  RdM;
     wire [31:0] PCPlus4M;
+    wire [31:0] ProALUResultM;
 
-    wire [3:0]  byte_enM;
-    wire [31:0] FormattedWriteDataM;
-
-    // ------------------ 5. Writeback Stage (WB) ------------------
+    // Writeback (WB) 级信号
     wire        RegWriteW;
     wire [1:0]  ResultSrcW;
     wire [1:0]  l_selW;
     wire        u_loadW;
 
     wire [31:0] ProALUResultW;
-    wire [31:0] ReadDataRawW;
+    wire [31:0] ReadDataW;
     wire [31:0] PCTargetW;
-    wire [31:0] PCPlus4W;
     wire [4:0]  RdW;
-
-    wire [31:0] ReadDataW;  // 经过 Load Unit 格式化后的数据
-    wire [31:0] ResultW;    // 最终写回寄存器堆的数据
-
-    // ------------------ 6. Hazard Unit Control ------------------
-    wire        StallF, StallD, FlushD, StallE, FlushE, FlushM;
-    wire [1:0]  ForwardAE, ForwardBE;
-
-
-    // =========================================================================
-    // 1. 取指阶段 (FETCH STAGE)
-    // =========================================================================
+    wire [31:0] PCPlus4W;
     
-    assign imem_addr = PCF;
-    assign InstrF    = imem_rdata;
+    wire [31:0] ProReadDataW;
+    wire [31:0] ResultW;
 
+    // =========================================================================
+    // 全局基础部件：复位同步器
+    // =========================================================================
+    reset_sync u_reset_sync (
+        .clk       (clk),
+        .rst_async (reset),
+        .rst_sync  (rst_sync)
+    );
+
+    // =========================================================================
+    // FETCH (IF) 取指阶段
+    // =========================================================================
     pc_reg u_pc_reg (
         .CLK      (clk),
-        .RESET    (reset),
+        .RESET    (rst_sync),
         .StallF   (StallF),
-        .PCNextF (PCNextF),
+        .PCNextF  (PCNextF),
         .PCF      (PCF),
         .PCPlus4F (PCPlus4F)
     );
 
-    gshare u_gshare (
-        .clk         (clk),
-        .reset       (reset),
-        .PCF         (PCF),
-        .PCPlus4F    (PCPlus4F),
-        .opF         (InstrF[6:0]),
-        .PCE         (PCE),
-        .PCPlus4E    (PCPlus4E),
-        .PCSrcE      (PCSrcE),
-        .JumpE       (JumpE),
-        .JumprE      (JumprE),
-        .BranchE     (BranchE),
-        .br_actualE  (ALUResultE[0]), // 约定用 ALUResultE[0] 表示分支实际跳转结果
-        .PCTargetE   (PCTargetE),
-        .ALUResultE  (ALUResultE),
-        .mispredictE (mispredictE),
-        .br_predictE (br_predictE),
-        .PCNextF     (PCNextF),
-        .StallD      (StallD),
-        .FlushD      (FlushD),
-        .StallE      (StallE),
-        .FlushE      (FlushE)
-    );
+    assign imem_addr = PCF;
 
-    if_id_reg u_if_id_reg (
-        .CLK          (clk),
-        .StallD       (StallD),
-        .FlushD       (FlushD),
-        .RD           (InstrF),
+    // 级联高超前 Gshare 分支预测器
+    gshare u_gshare (
+        .clk          (clk),
+        .reset        (rst_sync),
         .PCF          (PCF),
         .PCPlus4F     (PCPlus4F),
-        .Instr_6_0    (Instr_6_0),
-        .Instr_14_12  (Instr_14_12),
-        .Instr_30     (Instr_30),
-        .Instr_25     (Instr_25),
-        .Rs1D         (Rs1D),
-        .Rs2D         (Rs2D),
-        .RdD          (RdD),
-        .Instr_31_7   (Instr_31_7),
-        .PCD          (PCD),
-        .PCPlus4D     (PCPlus4D)
+        .opF          (opF),
+        .PCE          (PCE),
+        .PCPlus4E     (PCPlus4E),
+        .PCSrcE       (PCSrcE),
+        .JumpE        (JumpE),
+        .JumprE       (JumprE),
+        .BranchE      (BranchE),
+        .br_actualE   (br_actualE),
+        .PCTargetE    (PCTargetE),
+        .ALUResultE   (ALUResultE),
+        .mispredictE  (mispredictE),
+        .br_predictE  (br_predictE),
+        .PCNextF      (PCNextF),
+        .StallD       (StallD),
+        .FlushD       (FlushD),
+        .StallE       (StallE),
+        .FlushE       (FlushE)
     );
 
     // =========================================================================
-    // 2. 译码阶段 (DECODE STAGE)
+    // IF/ID 段间寄存器
     // =========================================================================
+    if_id_reg u_if_id_reg (
+        .CLK         (clk),
+        .StallD      (StallD),
+        .FlushD      (FlushD),
+        .RD          (imem_rdata),
+        .PCF         (PCF),
+        .PCPlus4F    (PCPlus4F),
+        .Instr_6_0   (Instr_6_0),
+        .Instr_14_12 (Instr_14_12),
+        .Instr_30    (Instr_30),
+        .Instr_25    (Instr_25),
+        .Rs1D        (Rs1D),
+        .Rs2D        (Rs2D),
+        .RdD         (RdD),
+        .Instr_31_7  (Instr_31_7),
+        .PCD         (PCD),
+        .PCPlus4D    (PCPlus4D)
+    );
 
+    // =========================================================================
+    // DECODE (ID) 译码阶段
+    // =========================================================================
     ctrl_unit u_ctrl_unit (
         .op             (Instr_6_0),
         .funct3         (Instr_14_12),
@@ -200,7 +216,7 @@ module riscv_core
         .JumprD         (JumprD),
         .BranchD        (BranchD),
         .ALUResultsSrcD (ALUResultsSrcD),
-        .ALUControlD   (ALUControlD),
+        .ALUControlID   (ALUControlID),
         .ALUSrcD        (ALUSrcD),
         .ImmSrcD        (ImmSrcD)
     );
@@ -222,6 +238,9 @@ module riscv_core
         .ImmExt (ImmExtD)
     );
 
+    // =========================================================================
+    // ID/EX 段间寄存器
+    // =========================================================================
     id_ex_reg u_id_ex_reg (
         .CLK            (clk),
         .StallE         (StallE),
@@ -236,7 +255,7 @@ module riscv_core
         .JumprD         (JumprD),
         .BranchD        (BranchD),
         .ALUResultsSrcD (ALUResultsSrcD),
-        .ALUControlD   (ALUControlD),
+        .ALUControlD    (ALUControlID),
         .ALUSrcD        (ALUSrcD),
         .PCD            (PCD),
         .Rs1D           (Rs1D),
@@ -269,61 +288,58 @@ module riscv_core
     );
 
     // =========================================================================
-    // 3. 执行阶段 (EXECUTE STAGE)
+    // EXECUTE (EX) 执行阶段
     // =========================================================================
-
-    // A 端前推选择 MUX
-    mux3 #(.WIDTH(32)) u_forwardA_mux (
+    
+    // 前推多路选择器
+    mux3 u_SrcA (
         .d0 (RD1E),
         .d1 (ResultW),
-        .d2 (ALUResultM),
+        .d2 (ProALUResultM),
         .s  (ForwardAE),
-        .y  (Forwarded_A_E)
+        .y  (SrcAE)
     );
 
-    // B 端前推选择 MUX (先选出写入内存的原始数据)
-    mux3 #(.WIDTH(32)) u_forwardB_mux (
+    mux3 u_SrcB0 (
         .d0 (RD2E),
         .d1 (ResultW),
-        .d2 (ALUResultM),
+        .d2 (ProALUResultM),
         .s  (ForwardBE),
         .y  (WriteDataE)
     );
 
-    // 区别是寄存器值还是立即数
-    mux2 #(.WIDTH(32)) u_srcB_mux (
+    mux2 u_SrcB1 (
         .d0 (WriteDataE),
         .d1 (ImmExtE),
         .s  (ALUSrcE),
         .y  (SrcBE)
     );
 
-    // 处理极少数特殊的微架构需求，这里将 Forwarded_A_E 直接赋给 SrcAE
-    assign SrcAE = Forwarded_A_E;
-
+    // 执行单元组件 ALU
     alu u_alu (
         .clk        (clk),
-        .reset      (reset),
+        .reset      (rst_sync),
         .SrcA       (SrcAE),
         .SrcB       (SrcBE),
         .ALUControl (ALUControlE),
         .BusyE      (BusyE),
-        .ALUResult  (ALUResultE)
+        .ALResult   (ALUResultE)
     );
 
-    // 计算标准 B/J 类型的目标跳转地址 (PCE + ImmExtE)
-    assign PCTargetE = PCE + ImmExtE;
-
+    // 预测失败判定及跳转源路由生成器
     pc_src u_pc_src (
         .Jump       (JumpE),
         .Jumpr      (JumprE),
         .Branch     (BranchE),
-        .br_taken   (ALUResultE[0]),
+        .br_taken   (br_actualE),
         .br_predict (br_predictE),
         .PCSrc      (PCSrcE),
         .mispredict (mispredictE)
     );
 
+    // =========================================================================
+    // EX/MEM 段间寄存器
+    // =========================================================================
     ex_mem_reg u_ex_mem_reg (
         .CLK           (clk),
         .FlushM        (FlushM),
@@ -334,6 +350,11 @@ module riscv_core
         .l_selE        (l_selE),
         .u_loadE       (u_loadE),
         .ALUResultSrcE (ALUResultsSrcE),
+        .ALUResultE    (ALUResultE),
+        .WriteDataE    (WriteDataE),
+        .PCTargetE     (PCTargetE),
+        .RdE           (RdE),
+        .PCPlus4E      (PCPlus4E),
         .RegWriteM     (RegWriteM),
         .ResultSrcM    (ResultSrcM),
         .MemWriteM     (MemWriteM),
@@ -341,75 +362,81 @@ module riscv_core
         .l_selM        (l_selM),
         .u_loadM       (u_loadM),
         .ALUResultSrcM (ALUResultSrcM),
-        .ALUResultE    (ALUResultE),
-        .WriteDataE    (WriteDataE),
-        .RdE           (RdE),
-        .PCTargetE     (PCTargetE),
-        .PCPlus4E      (PCPlus4E),
         .ALUResultM    (ALUResultM),
         .WriteDataM    (WriteDataM),
-        .RdM           (RdM),
         .PCTargetM     (PCTargetM),
+        .RdM           (RdM),
         .PCPlus4M      (PCPlus4M)
     );
 
     // =========================================================================
-    // 4. 访存阶段 (MEMORY STAGE)
+    // MEMORY (MEM) 访存阶段
     // =========================================================================
-
+    
+    // Store 格式化组件
     store_unit u_store_unit (
         .MemWrite  (MemWriteM),
         .s_sel     (s_selM),
         .b_sel     (ALUResultM[1:0]),
         .RawData   (WriteDataM),
-        .byte_en   (byte_enM),
-        .WriteData (FormattedWriteDataM)
+        .byte_en   (dmem_byte_en),
+        .WriteData (dmem_wdata)
     );
 
-    // 挂接外部 Data Memory 物理总线
-    assign dmem_we      = MemWriteM;
-    assign dmem_byte_en = byte_enM;
-    assign dmem_addr    = ALUResultM;
-    assign dmem_wdata   = FormattedWriteDataM;
+    assign dmem_we   = MemWriteM;
+    assign dmem_addr = ALUResultM;
 
+    // MEM 级直通选择器
+    mux3 u_alu_result (
+        .d0 (ALUResultM),
+        .d1 (PCPlus4M),
+        .d2 (PCTargetM),
+        .s  (ALUResultSrcM),
+        .y  (ProALUResultM)
+    );
+
+    // =========================================================================
+    // MEM/WB 段间寄存器
+    // =========================================================================
     mem_wb_reg u_mem_wb_reg (
         .CLK           (clk),
         .RegWriteM     (RegWriteM),
         .ResultSrcM    (ResultSrcM),
         .l_selM        (l_selM),
         .u_loadM       (u_loadM),
+        .ProALUResultM (ProALUResultM),
+        .ReadDataM     (dmem_rdata),
+        .PCTargetM     (PCTargetM),
+        .RdM           (RdM),
+        .PCPlus4M      (PCPlus4M),
         .RegWriteW     (RegWriteW),
         .ResultSrcW    (ResultSrcW),
         .l_selW        (l_selW),
         .u_loadW       (u_loadW),
-        .ProALUResultM (ALUResultM), // 原名映射：传递访存级生成的有效计算地址
-        .ReadDataM     (dmem_rdata), // 直接由外部内存吐出的原始数据
-        .PCTargetM     (PCTargetM),
-        .PCPlus4M      (PCPlus4M),
-        .RdM           (RdM),
         .ProALUResultW (ProALUResultW),
-        .ReadDataW     (ReadDataRawW),
+        .ReadDataW     (ReadDataW),
         .PCTargetW     (PCTargetW),
-        .PCPlus4W      (PCPlus4W),
-        .RdW           (RdW)
+        .RdW           (RdW),
+        .PCPlus4W      (PCPlus4W)
     );
 
     // =========================================================================
-    // 5. 写回阶段 (WRITEBACK STAGE)
+    // WRITEBACK (WB) 写回阶段
     // =========================================================================
-
+    
+    // Load 格式化对齐组件
     load_unit u_load_unit (
         .l_sel    (l_selW),
         .bhw_sel  (ProALUResultW[1:0]),
         .u_load   (u_loadW),
-        .RawData  (ReadDataRawW),
-        .ReadData (ReadDataW)
+        .RawData  (ReadDataW),
+        .ReadData (ProReadDataW)
     );
 
-    // 最终写回寄存器源数据 4路选择 MUX (根据 ResultSrcW 切换)
-    mux4 #(.WIDTH(32)) u_wb_result_mux (
+    // 最终写回结果选择器 MUX
+    mux4 u_result (
         .d0 (ProALUResultW),
-        .d1 (ReadDataW),
+        .d1 (ProReadDataW),
         .d2 (PCPlus4W),
         .d3 (PCTargetW),
         .s  (ResultSrcW),
@@ -417,30 +444,29 @@ module riscv_core
     );
 
     // =========================================================================
-    // 6. 流水线冲突控制单元 (HAZARD UNIT)
+    // GLOBAL CONTROLLER: 冒险控制单元 (Hazard Unit)
     // =========================================================================
-
     hazard_unit u_hazard_unit (
-        .Rs1D         (Rs1D),
-        .Rs2D         (Rs2D),
-        .Rs1E         (Rs1E),
-        .Rs2E         (Rs2E),
-        .RdE          (RdE),
-        .mispredictE  (mispredictE),
-        .ResultSrcE   (ResultSrcE),
-        .BusyE        (BusyE),
-        .RdM          (RdM),
-        .RegWriteM    (RegWriteM),
-        .RdW          (RdW),
-        .RegWriteW    (RegWriteW),
-        .StallF       (StallF),
-        .StallD       (StallD),
-        .FlushD       (FlushD),
-        .StallE       (StallE),
-        .FlushE       (FlushE),
-        .FlushM       (FlushM),
-        .ForwardAE    (ForwardAE),
-        .ForwardBE    (ForwardBE)
+        .Rs1D        (Rs1D),
+        .Rs2D        (Rs2D),
+        .Rs1E        (Rs1E),
+        .Rs2E        (Rs2E),
+        .RdE         (RdE),
+        .mispredictE (mispredictE),
+        .ResultSrcE  (ResultSrcE),
+        .BusyE       (BusyE),
+        .RdM         (RdM),
+        .RegWriteM   (RegWriteM),
+        .RdW         (RdW),
+        .RegWriteW   (RegWriteW),
+        .StallF      (StallF),
+        .StallD      (StallD),
+        .FlushD      (FlushD),
+        .StallE      (StallE),
+        .FlushE      (FlushE),
+        .FlushM      (FlushM),
+        .ForwardAE   (ForwardAE),
+        .ForwardBE   (ForwardBE)
     );
 
 endmodule

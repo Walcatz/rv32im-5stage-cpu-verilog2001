@@ -13,3 +13,15 @@
         ├── pc_reg.v (pc控制寄存器)--------O
         └── [4个流水线寄存器模块：if_id_reg, id_ex_reg, ex_mem_reg, mem_wb_reg]--------O
         pc_src--------O
+        额外增加reset sync模块
+
+
+        待解决问题：
+        branch prediction的打拍子逻辑
+
+        mul_16c和divider_32c逻辑检查
+
+        汇编转机器码
+        交叉编译工具链
+
+

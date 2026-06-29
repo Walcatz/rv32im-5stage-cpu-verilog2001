@@ -17,7 +17,7 @@ module ctrl_unit
   output wire        JumprD,          // 改为 assign 驱动
   output wire        BranchD,         // 改为 assign 驱动
   output reg  [1:0]  ALUResultsSrcD,
-  output reg  [4:0]  ALUControlID,
+  output reg  [4:0]  ALUControlD,
   output wire        ALUSrcD,         // 改为 assign 驱动
   output reg  [2:0]  ImmSrcD
 );
@@ -118,61 +118,63 @@ module ctrl_unit
   end
 
   // =========================================================================
-  // 7. 核心 ALU 算术指令译码 (ALUControlID)
+  // 7. 核心 ALU 算术指令译码 (ALUControlD)
   // =========================================================================
   always @(*) begin
     case (op)
       OP_I_TYPE_A,
       OP_I_TYPE_B,
-      OP_S_TYPE   : ALUControlID = ALU_ADD;
+      OP_S_TYPE   : ALUControlD = ALU_ADD;
 
-      OP_U_TYPE_A : ALUControlID = ALU_LUI;
+      OP_U_TYPE_A : ALUControlD = ALU_LUI;
 
       OP_R_TYPE,
       OP_I_TYPE_C : begin
         if ((op == OP_R_TYPE) && funct7_0) begin
           // M 扩展多周期乘除法
           case (funct3)
-            3'b000  : ALUControlID = ALU_MUL;
-            3'b001  : ALUControlID = ALU_MULH;
-            3'b010  : ALUControlID = ALU_MULHSU;
-            3'b011  : ALUControlID = ALU_MULHU;
-            3'b100  : ALUControlID = ALU_DIV;
-            3'b101  : ALUControlID = ALU_DIVU;
-            3'b110  : ALUControlID = ALU_REM;
-            3'b111  : ALUControlID = ALU_REMU;
-            default : ALUControlID = ALU_INVAL;
+            3'b000  : ALUControlD = ALU_MUL;
+            3'b001  : ALUControlD = ALU_MULH;
+            3'b010  : ALUControlD = ALU_MULHSU;
+            3'b011  : ALUControlD = ALU_MULHU;
+            3'b100  : ALUControlD = ALU_DIV;
+            3'b101  : ALUControlD = ALU_DIVU;
+            3'b110  : ALUControlD = ALU_REM;
+            3'b111  : ALUControlD = ALU_REMU;
+            default : ALUControlD = ALU_INVAL;
           endcase
         end 
         else begin
           // 基础 I 扩展整数运算
           case (funct3)
-            3'b000  : ALUControlID = ((op == OP_R_TYPE) && funct7_5) ? ALU_SUB : ALU_ADD;
-            3'b001  : ALUControlID = ALU_SLL;
-            3'b010  : ALUControlID = ALU_LESS;
-            3'b011  : ALUControlID = ALU_LESSU;
-            3'b100  : ALUControlID = ALU_XOR;
-            3'b101  : ALUControlID = funct7_5 ? ALU_SRA : ALU_SRL;
-            3'b110  : ALUControlID = ALU_OR;
-            3'b111  : ALUControlID = ALU_AND;
-            default : ALUControlID = ALU_INVAL;
+            3'b000  : ALUControlD = ((op == OP_R_TYPE) && funct7_5) ? ALU_SUB : ALU_ADD;
+            3'b001  : ALUControlD = ALU_SLL;
+            3'b010  : ALUControlD = ALU_LESS;
+            3'b011  : ALUControlD = ALU_LESSU;
+            3'b100  : ALUControlD = ALU_XOR;
+            3'b101  : ALUControlD = funct7_5 ? ALU_SRA : ALU_SRL;
+            3'b110  : ALUControlD = ALU_OR;
+            3'b111  : ALUControlD = ALU_AND;
+            default : ALUControlD = ALU_INVAL;
           endcase
         end
       end
 
       OP_B_TYPE : begin
         case (funct3)
-          3'b000  : ALUControlID = ALU_EQ;
-          3'b001  : ALUControlID = ALU_NEQ;
-          3'b100  : ALUControlID = ALU_LESS;
-          3'b101  : ALUControlID = ALU_GEQ;
-          3'b110  : ALUControlID = ALU_LESSU;
-          3'b111  : ALUControlID = ALU_GEQU;
-          default : ALUControlID = ALU_INVAL;
+          3'b000  : ALUControlD = ALU_EQ;
+          3'b001  : ALUControlD = ALU_NEQ;
+          3'b100  : ALUControlD = ALU_LESS;
+          3'b101  : ALUControlD = ALU_GEQ;
+          3'b110  : ALUControlD = ALU_LESSU;
+          3'b111  : ALUControlD = ALU_GEQU;
+          default : ALUControlD = ALU_INVAL;
         endcase
       end
+      OP_I_TYPE_D ,
+      OP_I_TYPE_E : ALUControlD = ALU_INVAL;
 
-      default : ALUControlID = ALU_INVAL;
+      default : ALUControlD = ALU_INVAL;
     endcase
   end
 

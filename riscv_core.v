@@ -54,7 +54,7 @@ module riscv_core
     wire        JumprD;
     wire        BranchD;
     wire [1:0]  ALUResultsSrcD;
-    wire [4:0]  ALUControlID;
+    wire [4:0]  ALUControlD;
     wire        ALUSrcD;
     wire [2:0]  ImmSrcD;
 
@@ -221,7 +221,7 @@ module riscv_core
         .JumprD         (JumprD),
         .BranchD        (BranchD),
         .ALUResultsSrcD (ALUResultsSrcD),
-        .ALUControlID   (ALUControlID),
+        .ALUControlD   (ALUControlD),
         .ALUSrcD        (ALUSrcD),
         .ImmSrcD        (ImmSrcD)
     );
@@ -260,7 +260,7 @@ module riscv_core
         .JumprD         (JumprD),
         .BranchD        (BranchD),
         .ALUResultsSrcD (ALUResultsSrcD),
-        .ALUControlD    (ALUControlID),
+        .ALUControlD    (ALUControlD),
         .ALUSrcD        (ALUSrcD),
         .PCD            (PCD),
         .Rs1D           (Rs1D),

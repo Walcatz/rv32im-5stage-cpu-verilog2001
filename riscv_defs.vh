@@ -4,15 +4,23 @@
 // `include "riscv_defs.vh"
 
 // Opcodes
-parameter [6:0] OP_R_TYPE     = 7'b0110011;
-parameter [6:0] OP_I_TYPE_A   = 7'b1100111;
-parameter [6:0] OP_I_TYPE_B   = 7'b0000011;
-parameter [6:0] OP_I_TYPE_C   = 7'b0010011;
-parameter [6:0] OP_S_TYPE     = 7'b0100011;
-parameter [6:0] OP_B_TYPE     = 7'b1100011;
-parameter [6:0] OP_U_TYPE_A   = 7'b0110111;
-parameter [6:0] OP_U_TYPE_B   = 7'b0010111;
-parameter [6:0] OP_J_TYPE     = 7'b1101111;
+parameter [6:0] OP_R_TYPE     = 7'b0110011; //OP: ADD, SUB, SLL, SLT, SLTU, XOR, SRL, SRA, OR, AND
+
+parameter [6:0] OP_I_TYPE_A   = 7'b1100111; //JALR
+parameter [6:0] OP_I_TYPE_B   = 7'b0000011; //Load: LLB, LH, LW, LBU, LHU
+parameter [6:0] OP_I_TYPE_C   = 7'b0010011; //OP-IMM: ADDI, SLTI, SLTIU, XORI, ORI, ANDI, SLLI, SRLI, SRAI
+
+parameter [6:0] OP_S_TYPE     = 7'b0100011; //Store: SB, SH, SW
+
+parameter [6:0] OP_B_TYPE     = 7'b1100011; //Branch: BEQ, BNE, BLT, BGE, BLTU, BGEU
+
+parameter [6:0] OP_U_TYPE_A   = 7'b0110111; //LUI
+parameter [6:0] OP_U_TYPE_B   = 7'b0010111; //AUIPC
+
+parameter [6:0] OP_J_TYPE     = 7'b1101111; //JAL
+
+parameter [6:0] OP_I_TYPE_D   = 7'b0001111; // Fence, FENCE.TSO, PAUSE, FENCE.I  OP_MISC_MEM
+parameter [6:0] OP_I_TYPE_E   = 7'b1110011; // System: ECALL, EBREAK, CSRRW, CSRRS, CSRRC, CSRRWI, CSRRSI, CSRRCI
 
 // ALU Operations
 parameter [4:0] ALU_ADD       = 5'h00;
@@ -46,3 +54,13 @@ parameter [2:0] IMM_S         = 3'h1;
 parameter [2:0] IMM_B         = 3'h2;
 parameter [2:0] IMM_U         = 3'h3;
 parameter [2:0] IMM_J         = 3'h4;
+parameter [2:0] IMM_Z         = 3'h5; // 👈 CSR专用：5位零扩展立即数类型(作为保留)
+
+
+// CSR Operations (Funct3 字段)
+parameter [2:0] CSR_RW        = 3'b001;
+parameter [2:0] CSR_RS        = 3'b010;
+parameter [2:0] CSR_RC        = 3'b011;
+parameter [2:0] CSR_RWI       = 3'b101;
+parameter [2:0] CSR_RSI       = 3'b110;
+parameter [2:0] CSR_RCI       = 3'b111;

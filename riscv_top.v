@@ -44,7 +44,7 @@ module riscv_top
     // 默认保持你声明的 14 位物理地址和 4096 深度参数
     instruction_mem #(
         .ADDR_WIDTH (14),
-        .MEM_DEPTH  (4096)
+        .MEM_DEPTH  (1024)
     ) u_instruction_mem (
         .A  (imem_addr),
         .RD (imem_rdata)
@@ -55,7 +55,7 @@ module riscv_top
     // =========================================================================
     data_mem #(
         .ADDR_WIDTH (14),
-        .MEM_DEPTH  (4096)
+        .MEM_DEPTH  (1024)
     ) u_data_mem (
         .CLK (clk),
         .WE  (dmem_we),

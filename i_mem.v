@@ -23,7 +23,7 @@ module instruction_mem #(
     // end
     // 仿真初始化：使用绝对路径从指定目录加载机器码
     initial begin
-        $readmemh("E:/Xilinx/vivado_project/project_hjgr/project_hjgr.srcs/sources_1/rtl/i_mem.hex", rom);
+        $readmemh("E:/Xilinx/vivado_project/project_hjgr/project_hjgr.srcs/sources_1/rtl/hex_file/imem.hex", rom);
     end
 
 endmodule

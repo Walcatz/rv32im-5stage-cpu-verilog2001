@@ -27,6 +27,8 @@ module extend
       
       // J-Type (JAL绝对跳转): 原 [31], [19:12], [20], [30:21] -> 平移后为 [24], [12:5], [13], [23:14]
       IMM_J   : ImmExt = {{12{i_imm[31]}}, i_imm[19:12], i_imm[20], i_imm[30:21], 1'b0};
+
+      IMM_Z   : ImmExt = {27'b0, i_imm[19:15]};
       
       // 默认情况：导向安全默认值，防止由于未全覆盖产生锁存器(Latch)
       default : ImmExt = {{20{i_imm[31]}}, i_imm[31:20]};

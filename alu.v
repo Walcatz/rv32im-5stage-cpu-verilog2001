@@ -17,15 +17,16 @@ module alu
 
   wire [31:0] mul_result;
   wire [63:0] mul_product;
-  wire [31:0] quotient_out, remainder_out;
+  wire [31:0] div_result;
+  wire [31:0] div_quotient, div_remainder;
   reg  [1:0]  m_op_sel;
-  reg         d_sign_sel;
-  reg         mul_en, div_op;
+  reg  [1:0]  d_op_sel;
+  reg         mul_en, div_en;
   wire        mul_v, div_v;
 
   // 握手信号：在使用多周期乘除法单元时，未完成前维持 Busy 状态
   // 乘法高/低 32 位选择已下沉到 rv32m_mul_unit；ALU 直接取 mul_result。
-  assign BusyE = reset ? 1'b0 : (mul_en & !mul_v) | (div_op & !div_v);
+  assign BusyE = reset ? 1'b0 : (mul_en & !mul_v) | (div_en & !div_v);
 
   // =========================================================================
   // 子模块例化 (与原模块完美对齐)
@@ -61,16 +62,17 @@ module alu
     .product(mul_product)     // full 64-bit product, kept for debug/compatibility
   );
 
-  divider_32c u_div_32c(
+  rv32m_div_unit u_rv32m_div(
     .clk(clk),
     .reset(reset),
-    .enable(div_op),
-    .sign_sel(d_sign_sel),    // 0: S/S, 1: U/U
-    .numA(SrcA),
-    .denB(SrcB),
+    .enable(div_en),
+    .div_op(d_op_sel),        // 00: DIV, 01: DIVU, 10: REM, 11: REMU
+    .opA(SrcA),
+    .opB(SrcB),
     .done(div_v),
-    .quotient(quotient_out),
-    .remainder(remainder_out)
+    .result(div_result),      // final 32-bit RV32M writeback result
+    .quotient(div_quotient),  // kept for debug/compatibility
+    .remainder(div_remainder) // kept for debug/compatibility
   );
 
   // =========================================================================
@@ -95,16 +97,19 @@ module alu
     mul_en = (ALUControl == ALU_MUL)    || (ALUControl == ALU_MULH) ||
              (ALUControl == ALU_MULHSU) || (ALUControl == ALU_MULHU);
 
-    div_op = (ALUControl == ALU_DIV)    || (ALUControl == ALU_DIVU) ||
+    div_en = (ALUControl == ALU_DIV)    || (ALUControl == ALU_DIVU) ||
              (ALUControl == ALU_REM)    || (ALUControl == ALU_REMU);
 
-    // 3. 乘除法有符号/无符号模式选择
+    // 3. 乘除法 RV32M 操作类型选择
     m_op_sel = (ALUControl == ALU_MULH)   ? 2'b01 :   // MULH
                (ALUControl == ALU_MULHSU) ? 2'b10 :   // MULHSU
                (ALUControl == ALU_MULHU)  ? 2'b11 :   // MULHU
                                             2'b00 ;   // MUL
 
-    d_sign_sel = (ALUControl == ALU_DIVU) || (ALUControl == ALU_REMU);
+    d_op_sel = (ALUControl == ALU_DIVU) ? 2'b01 :   // DIVU
+               (ALUControl == ALU_REM)  ? 2'b10 :   // REM
+               (ALUControl == ALU_REMU) ? 2'b11 :   // REMU
+                                          2'b00 ;   // DIV
 
     // 4. 最终大 MUX 结果输出选择
     case (ALUControl)
@@ -136,10 +141,9 @@ module alu
       ALU_MULHU   : ALUResult = mul_result;
 
       ALU_DIV,
-      ALU_DIVU    : ALUResult = quotient_out;
-
+      ALU_DIVU,
       ALU_REM,
-      ALU_REMU    : ALUResult = remainder_out;
+      ALU_REMU    : ALUResult = div_result;
 
       ALU_INVAL   : ALUResult = adder_out;
       default     : ALUResult = adder_out;

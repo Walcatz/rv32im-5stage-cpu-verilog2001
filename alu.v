@@ -15,15 +15,17 @@ module alu
   wire        v, c, n, z;
   reg         s_mode, a_en;
 
-  wire [63:0] multiplier_out;
+  wire [31:0] mul_result;
+  wire [63:0] mul_product;
   wire [31:0] quotient_out, remainder_out;
-  reg  [1:0]  m_sign_sel;
+  reg  [1:0]  m_op_sel;
   reg         d_sign_sel;
-  reg         mul_op, div_op;
+  reg         mul_en, div_op;
   wire        mul_v, div_v;
 
   // 握手信号：在使用多周期乘除法单元时，未完成前维持 Busy 状态
-  assign BusyE = reset ? 1'b0 : (mul_op & !mul_v) | (div_op & !div_v);
+  // 乘法高/低 32 位选择已下沉到 rv32m_mul_unit；ALU 直接取 mul_result。
+  assign BusyE = reset ? 1'b0 : (mul_en & !mul_v) | (div_op & !div_v);
 
   // =========================================================================
   // 子模块例化 (与原模块完美对齐)
@@ -47,15 +49,16 @@ module alu
     .data_out(shift_out)
   );
 
-  multiplier_16c u_mul_16c(
+  rv32m_mul_unit u_rv32m_mul(
     .clk(clk),
     .reset(reset),
-    .enable(mul_op),
+    .enable(mul_en),
+    .mul_op(m_op_sel),        // 00: MUL, 01: MULH, 10: MULHSU, 11: MULHU
     .opA(SrcA),
     .opB(SrcB),
-    .sign_sel(m_sign_sel),    // 00: S/S, 01: S/U, 10: U/U
-    .product(multiplier_out),
-    .done(mul_v)
+    .done(mul_v),
+    .result(mul_result),      // final 32-bit RV32M writeback result
+    .product(mul_product)     // full 64-bit product, kept for debug/compatibility
   );
 
   divider_32c u_div_32c(
@@ -89,16 +92,17 @@ module alu
     a_en   = (ALUControl == ALU_SRA);
 
     // 2. 生成乘除法触发信号
-    mul_op = (ALUControl == ALU_MUL)    || (ALUControl == ALU_MULH) ||
+    mul_en = (ALUControl == ALU_MUL)    || (ALUControl == ALU_MULH) ||
              (ALUControl == ALU_MULHSU) || (ALUControl == ALU_MULHU);
 
     div_op = (ALUControl == ALU_DIV)    || (ALUControl == ALU_DIVU) ||
              (ALUControl == ALU_REM)    || (ALUControl == ALU_REMU);
 
     // 3. 乘除法有符号/无符号模式选择
-    m_sign_sel = (ALUControl == ALU_MULHSU) ? 2'b01 :   // 有符号/无符号
-                 (ALUControl == ALU_MULHU)  ? 2'b10 :   // 无符号/无符号
-                                              2'b00 ;   // 默认 有符号/有符号
+    m_op_sel = (ALUControl == ALU_MULH)   ? 2'b01 :   // MULH
+               (ALUControl == ALU_MULHSU) ? 2'b10 :   // MULHSU
+               (ALUControl == ALU_MULHU)  ? 2'b11 :   // MULHU
+                                            2'b00 ;   // MUL
 
     d_sign_sel = (ALUControl == ALU_DIVU) || (ALUControl == ALU_REMU);
 
@@ -126,11 +130,10 @@ module alu
 
       ALU_LUI     : ALUResult = SrcB;
 
-      ALU_MUL     : ALUResult = multiplier_out[31:0];
-      
+      ALU_MUL,
       ALU_MULH,
       ALU_MULHSU,
-      ALU_MULHU   : ALUResult = multiplier_out[63:32];
+      ALU_MULHU   : ALUResult = mul_result;
 
       ALU_DIV,
       ALU_DIVU    : ALUResult = quotient_out;
